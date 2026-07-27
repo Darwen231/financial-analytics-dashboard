@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Real-Time Financial Analytics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #07111f;
+        --panel: rgba(15, 23, 42, 0.95);
+        --panel-2: rgba(30, 41, 59, 0.95);
+        --border: rgba(148, 163, 184, 0.2);
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --green: #22c55e;
+        --red: #ef4444;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Inter, "Segoe UI", Roboto, sans-serif;
+        background: radial-gradient(circle at top, #10243a, var(--bg) 60%);
+        color: var(--text);
+        min-height: 100vh;
+      }
+
+      .shell {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 24px 28px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        border-radius: 20px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+      }
+
+      .hero h1 {
+        margin: 0 0 8px;
+        font-size: 1.8rem;
+      }
+
+      .hero p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(34, 197, 84, 0.15);
+        color: #bbf7d0;
+        border: 1px solid rgba(34, 197, 84, 0.25);
+        font-weight: 600;
+      }
+
+      .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--green);
+        animation: pulse 1.5s infinite;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 18px;
+        margin-top: 22px;
+      }
+
+      .card {
+        padding: 20px;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        background: linear-gradient(135deg, var(--panel-2), rgba(15, 23, 42, 0.95));
+      }
+
+      .card .label {
+        display: block;
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+      }
+
+      .value {
+        font-size: 1.65rem;
+        font-weight: 700;
+      }
+
+      .trend-up { color: var(--green); }
+      .trend-down { color: var(--red); }
+
+      .chart-card {
+        margin-top: 22px;
+        padding: 20px;
+        border-radius: 20px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        height: 430px;
+      }
+
+      .chart-card h2 {
+        margin: 0 0 14px;
+        font-size: 1.08rem;
+      }
+
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.15); opacity: 0.8; }
+      }
+
+      @media (max-width: 720px) {
+        .shell { padding: 16px; }
+        .hero { flex-direction: column; align-items: flex-start; gap: 12px; }
+        .chart-card { height: 320px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <section class="hero">
+        <div>
+          <h1>Real-Time Financial Analytics &amp; Technical Dashboard</h1>
+          <p>Streaming market data, SMA 14, RSI 14, and live charting in a polished dark-mode UI.</p>
+        </div>
+        <div class="status-pill" id="connectionStatus">
+          <span class="status-dot"></span>
+          <span>Connecting…</span>
+        </div>
+      </section>
+
+      <section class="stats-grid">
+        <div class="card">
+          <span class="label">Price</span>
+          <div class="value" id="priceValue">--</div>
+        </div>
+        <div class="card">
+          <span class="label">24h Change</span>
+          <div class="value" id="changeValue">--</div>
+        </div>
+        <div class="card">
+          <span class="label">SMA 14</span>
+          <div class="value" id="smaValue">--</div>
+        </div>
+        <div class="card">
+          <span class="label">RSI 14</span>
+          <div class="value" id="rsiValue">--</div>
+        </div>
+      </section>
+
+      <section class="chart-card">
+        <h2>BTC / USDT Price Flow</h2>
+        <canvas id="priceChart"></canvas>
+      </section>
+    </div>
+
+    <script>
+      const connectionStatus = document.getElementById('connectionStatus');
+      const priceValue = document.getElementById('priceValue');
+      const changeValue = document.getElementById('changeValue');
+      const smaValue = document.getElementById('smaValue');
+      const rsiValue = document.getElementById('rsiValue');
+      const chartCanvas = document.getElementById('priceChart');
+
+      const labels = [];
+      const prices = [];
+
+      const chart = new Chart(chartCanvas, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'BTC/USDT',
+            data: prices,
+            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(56, 189, 248, 0.18)',
+            borderWidth: 2.5,
+            pointRadius: 0,
+            tension: 0.25,
+            fill: true,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+          },
+          scales: {
+            x: {
+              ticks: { color: '#94a3b8' },
+              grid: { color: 'rgba(255,255,255,0.06)' },
+            },
+            y: {
+              ticks: { color: '#94a3b8' },
+              grid: { color: 'rgba(255,255,255,0.06)' },
+            },
+          },
+        },
+      });
+
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const socket = new WebSocket(`${wsProtocol}://${window.location.host}/ws/market`);
+
+      function formatCurrency(value) {
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value);
+      }
+
+      function formatPercent(value) {
+        return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+      }
+
+      function updateDashboard(data) {
+        const price = Number(data.price ?? 0);
+        const changePercent = Number(data.changePercent ?? 0);
+        const sma14 = data.sma14 != null ? Number(data.sma14) : null;
+        const rsi14 = data.rsi14 != null ? Number(data.rsi14) : null;
+
+        priceValue.textContent = formatCurrency(price);
+        priceValue.className = `value ${changePercent >= 0 ? 'trend-up' : 'trend-down'}`;
+
+        changeValue.textContent = formatPercent(changePercent);
+        changeValue.className = `value ${changePercent >= 0 ? 'trend-up' : 'trend-down'}`;
+
+        smaValue.textContent = sma14 != null ? formatCurrency(sma14) : '--';
+        smaValue.className = 'value';
+
+        rsiValue.textContent = rsi14 != null ? `${rsi14.toFixed(1)}` : '--';
+        rsiValue.className = 'value';
+
+        if (labels.length >= 60) {
+          labels.shift();
+          prices.shift();
+        }
+
+        labels.push(new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        prices.push(price);
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = prices;
+        chart.update();
+      }
+
+      socket.addEventListener('open', () => {
+        connectionStatus.innerHTML = '<span class="status-dot"></span><span>Live feed connected</span>';
+      });
+
+      socket.addEventListener('message', (event) => {
+        const payload = JSON.parse(event.data);
+        if (payload.type === 'snapshot' || payload.type === 'update') {
+          updateDashboard(payload.data);
+        }
+      });
+
+      socket.addEventListener('close', () => {
+        connectionStatus.innerHTML = '<span class="status-dot"></span><span>Disconnected</span>';
+      });
+
+      socket.addEventListener('error', () => {
+        connectionStatus.innerHTML = '<span class="status-dot"></span><span>Connection issue</span>';
+      });
+    </script>
+  </body>
+</html>
